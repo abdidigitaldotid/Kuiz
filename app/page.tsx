@@ -4,118 +4,95 @@
 
 import { useState, useEffect } from 'react';
 
-// --- 1. DATA PERTANYAAN KUIS ---
-// Anda bisa menambah atau mengubah pertanyaan di sini
+// --- DATA KUIS ---
 const quizData = [
-  {
-    question: "Apa ibukota Indonesia?",
-    options: ["Jakarta", "Bandung", "Surabaya", "Medan"],
-    correctAnswer: "Jakarta",
-  },
-  {
-    question: "Siapakah presiden pertama Indonesia?",
-    options: ["Soeharto", "B.J. Habibie", "Soekarno", "Joko Widodo"],
-    correctAnswer: "Soekarno",
-  },
-  {
-    question: "Lagu kebangsaan Indonesia adalah...",
-    options: ["Garuda Pancasila", "Indonesia Raya", "Maju Tak Gentar", "Padamu Negeri"],
-    correctAnswer: "Indonesia Raya",
-  },
-  {
-    question: "Berapa hasil dari 5 x 10?",
-    options: ["40", "55", "60", "50"],
-    correctAnswer: "50",
-  },
+  { question: "Apa ibukota Indonesia?", options: ["Jakarta", "Bandung", "Surabaya", "Medan"], correctAnswer: "Jakarta" },
+  { question: "Siapakah presiden pertama Indonesia?", options: ["Soeharto", "B.J. Habibie", "Soekarno", "Joko Widodo"], correctAnswer: "Soekarno" },
+  { question: "Lagu kebangsaan Indonesia adalah...", options: ["Garuda Pancasila", "Indonesia Raya", "Maju Tak Gentar", "Padamu Negeri"], correctAnswer: "Indonesia Raya" },
+  { question: "Berapa hasil dari 5 x 10?", options: ["40", "55", "60", "50"], correctAnswer: "50" },
 ];
 
 export default function QuizPage() {
-  // --- 2. STATE MANAGEMENT KUIS ---
+  // --- STATE MANAGEMENT ---
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
   const [isQuizOver, setIsQuizOver] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(15); // <-- STATE BARU
 
-  // --- 3. LOGIKA UTAMA KUIS ---
+  // --- LOGIKA TIMER ---
+  useEffect(() => {
+    if (showFeedback || isQuizOver) return;
+    if (timeLeft === 0) {
+      setShowFeedback(true);
+      setSelectedAnswer(null); // Dianggap salah karena waktu habis
+      return;
+    }
+    const timerId = setInterval(() => setTimeLeft(timeLeft - 1), 1000);
+    return () => clearInterval(timerId);
+  }, [timeLeft, showFeedback, isQuizOver]);
 
-  // Fungsi yang dijalankan saat user memilih jawaban
+  // --- FUNGSI-FUNGSI KUIS ---
   const handleAnswerClick = (answer: string) => {
-    if (showFeedback) return; // Jangan biarkan user menjawab lagi jika sudah dijawab
-
-    setSelectedAnswer(answer);
+    if (showFeedback) return;
     setShowFeedback(true);
-
+    setSelectedAnswer(answer);
     if (answer === quizData[currentQuestionIndex].correctAnswer) {
-      setScore(score + 10); // Tambah 10 poin jika benar
+      setScore(score + 10);
     }
   };
 
-  // Fungsi untuk lanjut ke pertanyaan berikutnya
   const handleNextQuestion = () => {
     setShowFeedback(false);
     setSelectedAnswer(null);
-
+    setTimeLeft(15); // <-- RESET TIMER
     if (currentQuestionIndex < quizData.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      setIsQuizOver(true); // Jika pertanyaan habis, kuis selesai
+      setIsQuizOver(true);
     }
   };
-  
-  // Fungsi untuk mengulang kuis dari awal
+
   const resetQuiz = () => {
     setCurrentQuestionIndex(0);
     setScore(0);
     setSelectedAnswer(null);
     setShowFeedback(false);
     setIsQuizOver(false);
-  }
+    setTimeLeft(15); // <-- RESET TIMER
+  };
 
-  // --- 4. INTEGRASI IKLAN MONETAG ---
   const handleShowRewardedAd = () => {
+    // ... (fungsi iklan tetap sama, tidak perlu diubah)
     if (isAdLoading || showFeedback) return;
-
     if (window.show_9867079) {
       setIsAdLoading(true);
       window.show_9867079()
         .then(() => {
-          // INILAH HADIAHNYA: Setelah nonton iklan, jawaban yang benar akan ditandai
           alert("Terima kasih! Jawaban yang benar telah ditandai.");
+          setShowFeedback(true); // Tampilkan jawaban
           setSelectedAnswer(quizData[currentQuestionIndex].correctAnswer);
-          setShowFeedback(true); // Langsung tunjukkan feedback
         })
-        .catch((error) => {
-          console.error("Gagal menampilkan iklan:", error);
-          alert("Oops, iklan gagal dimuat. Coba lagi nanti.");
-        })
-        .finally(() => {
-          setIsAdLoading(false);
-        });
-    } else {
-      alert("Fitur bantuan belum siap, coba sesaat lagi.");
+        .catch((error) => console.error("Iklan Gagal:", error))
+        .finally(() => setIsAdLoading(false));
     }
   };
 
-  // --- 5. TAMPILAN (RENDER UI) ---
-  
-  // Tampilan saat kuis selesai
+  // --- TAMPILAN (UI) ---
   if (isQuizOver) {
     return (
       <main style={styles.container}>
         <div style={styles.quizCard}>
           <h1>Kuis Selesai!</h1>
           <p style={styles.finalScore}>Skor Akhir Anda: {score}</p>
-          <button onClick={resetQuiz} style={styles.primaryButton}>
-            Main Lagi
-          </button>
+          <button onClick={resetQuiz} style={styles.primaryButton}>Main Lagi</button>
         </div>
       </main>
     );
   }
 
-  // Tampilan utama saat kuis berjalan
   const currentQuestion = quizData[currentQuestionIndex];
   return (
     <main style={styles.container}>
@@ -124,7 +101,12 @@ export default function QuizPage() {
           <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} dari {quizData.length}</span>
           <span style={styles.score}>Skor: {score}</span>
         </div>
-        
+
+        {/* ELEMEN TIMER BARU */}
+        <div style={styles.timerWrapper}>
+          Waktu Tersisa: <span style={{...styles.timer, color: timeLeft <= 5 ? 'red' : 'black'}}>{timeLeft}</span>
+        </div>
+
         <h2 style={styles.questionText}>{currentQuestion.question}</h2>
         
         <div style={styles.optionsGrid}>
@@ -132,29 +114,14 @@ export default function QuizPage() {
             const isCorrect = option === currentQuestion.correctAnswer;
             const isSelected = option === selectedAnswer;
             let buttonStyle = styles.optionButton;
-            if (showFeedback && isCorrect) {
-              buttonStyle = {...buttonStyle, ...styles.correctAnswer};
-            } else if (showFeedback && isSelected && !isCorrect) {
-              buttonStyle = {...buttonStyle, ...styles.wrongAnswer};
-            }
-
-            return (
-              <button
-                key={option}
-                onClick={() => handleAnswerClick(option)}
-                style={buttonStyle}
-                disabled={showFeedback}
-              >
-                {option}
-              </button>
-            );
+            if (showFeedback && isCorrect) buttonStyle = {...buttonStyle, ...styles.correctAnswer};
+            else if (showFeedback && isSelected && !isCorrect) buttonStyle = {...buttonStyle, ...styles.wrongAnswer};
+            return (<button key={option} onClick={() => handleAnswerClick(option)} style={buttonStyle} disabled={showFeedback}>{option}</button>);
           })}
         </div>
         
         {showFeedback ? (
-          <button onClick={handleNextQuestion} style={{...styles.primaryButton, marginTop: '20px'}}>
-            Lanjut
-          </button>
+          <button onClick={handleNextQuestion} style={{...styles.primaryButton, marginTop: '20px'}}>Lanjut</button>
         ) : (
           <button onClick={handleShowRewardedAd} disabled={isAdLoading} style={{...styles.secondaryButton, marginTop: '20px'}}>
             {isAdLoading ? 'Memuat...' : '💡 Butuh Bantuan?'}
@@ -165,14 +132,16 @@ export default function QuizPage() {
   );
 }
 
-// --- 6. STYLING UNTUK TAMPILAN ---
-// Anda bisa memindahkan ini ke file CSS jika mau
+// --- STYLING ---
 const styles: { [key: string]: React.CSSProperties } = {
+  // ... (salin semua style lama Anda)
   container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f0f2f5', fontFamily: 'sans-serif' },
   quizCard: { background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '90%', maxWidth: '500px' },
-  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '20px', fontSize: '14px', color: '#555' },
+  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px', color: '#555' },
   questionCounter: {},
   score: { fontWeight: 'bold' },
+  timerWrapper: { textAlign: 'center', marginBottom: '15px', fontSize: '18px' },
+  timer: { fontWeight: 'bold', background: '#eee', padding: '5px 10px', borderRadius: '5px' },
   questionText: { margin: '0 0 25px 0', fontSize: '20px', textAlign: 'center' },
   optionsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' },
   optionButton: { width: '100%', padding: '15px', fontSize: '16px', border: '2px solid #ddd', borderRadius: '8px', background: '#f9f9f9', cursor: 'pointer', transition: 'all 0.2s' },
