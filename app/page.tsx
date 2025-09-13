@@ -5,13 +5,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { allQuizData, pointsPerDifficulty, Question } from './quizData';
 
-// Tipe data untuk entri leaderboard
 interface LeaderboardEntry {
   name: string;
   score: number;
 }
 
-// Tambahkan 'leaderboard' ke status permainan
 type GameState = 'selection' | 'playing' | 'finished' | 'leaderboard';
 
 export default function QuizPage() {
@@ -30,17 +28,23 @@ export default function QuizPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [hasUsed5050, setHasUsed5050] = useState(false);
   const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
-  
-  // <-- STATE BARU UNTUK LEADERBOARD -->
   const [playerName, setPlayerName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
-
+  
+  // --- FUNGSI-FUNGSI KUIS (Didefinisikan di atas useEffect) ---
+  const handleWrongAnswer = useCallback(() => {
+    const newLives = lives - 1;
+    setLives(newLives);
+    setShowFeedback(true);
+    if (newLives <= 0) {
+      setGameState('finished');
+    }
+  }, [lives]);
 
   // --- LOGIKA-LOGIKA (useEffect) ---
-  // ... (useEffect timer pertanyaan tidak berubah)
   useEffect(() => {
     if (gameState !== 'playing' || showFeedback || isPaused) return;
     if (timeLeft === 0) {
@@ -51,7 +55,6 @@ export default function QuizPage() {
     return () => clearInterval(timerId);
   }, [timeLeft, showFeedback, isPaused, gameState, handleWrongAnswer]);
 
-  // ... (useEffect iklan periodik tidak berubah)
   useEffect(() => {
     const adIntervalId = setInterval(() => {
       if (window.show_9867079) {
@@ -65,30 +68,24 @@ export default function QuizPage() {
     return () => clearInterval(adIntervalId);
   }, []);
   
-  // <-- [useEffect BARU] untuk mengambil data leaderboard saat halaman dibuka -->
   useEffect(() => {
     if (gameState === 'leaderboard') {
       setIsLoadingLeaderboard(true);
       fetch('/api/scores')
         .then(res => res.json())
-        .then((data: LeaderboardEntry[]) => {
-          setLeaderboardData(data);
-        })
+        .then((data: LeaderboardEntry[]) => setLeaderboardData(data))
         .catch(err => console.error("Gagal mengambil leaderboard:", err))
         .finally(() => setIsLoadingLeaderboard(false));
     }
   }, [gameState]);
 
-
-  // --- FUNGSI-FUNGSI KUIS & IKLAN (sebagian besar tetap sama) ---
-  const handleWrongAnswer = useCallback(() => {
-    const newLives = lives - 1;
-    setLives(newLives);
-    setShowFeedback(true);
-    if (newLives <= 0) {
-      setGameState('finished');
-    }
-  }, [lives]);
+  // --- FUNGSI ALUR PERMAINAN ---
+  const handleCategorySelect = (category: string) => setSelectedCategory(category);
+  const handleDifficultySelect = (difficulty: string) => {
+    setSelectedDifficulty(difficulty);
+    setCurrentQuestions(allQuizData[selectedCategory][difficulty]);
+    setGameState('playing');
+  };
 
   const resetQuiz = () => {
     setGameState('selection');
@@ -104,11 +101,33 @@ export default function QuizPage() {
     setIsPaused(false);
     setHasUsed5050(false);
     setDisabledOptions([]);
-    setHasSubmitted(false); // <-- Reset status submit
-    setPlayerName(''); // <-- Reset nama pemain
+    setHasSubmitted(false);
+    setPlayerName('');
   };
-  
-  // <-- [FUNGSI BARU] untuk mengirim skor ke API -->
+
+  const handleAnswerClick = (answer: string) => {
+    if (showFeedback) return;
+    setSelectedAnswer(answer);
+    if (answer === currentQuestions[currentQuestionIndex].correctAnswer) {
+      setScore(score + pointsPerDifficulty[selectedDifficulty!]);
+      setShowFeedback(true);
+    } else {
+      handleWrongAnswer();
+    }
+  };
+
+  const handleNextQuestion = () => {
+    setShowFeedback(false);
+    setSelectedAnswer(null);
+    setTimeLeft(15);
+    setDisabledOptions([]);
+    if (currentQuestionIndex < currentQuestions.length - 1) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      setGameState('finished');
+    }
+  };
+
   const handleSubmitScore = async () => {
     if (!playerName.trim() || isSubmitting) {
       alert("Nama tidak boleh kosong!");
@@ -121,7 +140,7 @@ export default function QuizPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: playerName, score }),
       });
-      setHasSubmitted(true); // Tandai sudah berhasil submit
+      setHasSubmitted(true);
     } catch (error) {
       console.error("Gagal mengirim skor:", error);
       alert("Gagal mengirim skor, coba lagi nanti.");
@@ -130,34 +149,7 @@ export default function QuizPage() {
     }
   };
 
-  // ... (semua fungsi lain seperti handleAnswerClick, handleNextQuestion, handle ads, dll tetap sama)
-  const handleCategorySelect = (category: string) => setSelectedCategory(category);
-  const handleDifficultySelect = (difficulty: string) => {
-    setSelectedDifficulty(difficulty);
-    setCurrentQuestions(allQuizData[selectedCategory][difficulty]);
-    setGameState('playing');
-  };
-  const handleAnswerClick = (answer: string) => {
-    if (showFeedback) return;
-    setSelectedAnswer(answer);
-    if (answer === currentQuestions[currentQuestionIndex].correctAnswer) {
-      setScore(score + pointsPerDifficulty[selectedDifficulty!]);
-      setShowFeedback(true);
-    } else {
-      handleWrongAnswer();
-    }
-  };
-  const handleNextQuestion = () => {
-    setShowFeedback(false);
-    setSelectedAnswer(null);
-    setTimeLeft(15);
-    setDisabledOptions([]);
-    if (currentQuestionIndex < currentQuestions.length - 1) {
-      setCurrentQuestionIndex(currentQuestionIndex + 1);
-    } else {
-      setGameState('finished');
-    }
-  };
+  // --- FUNGSI-FUNGSI IKLAN ---
   const handleWatchAdForLife = () => {
     if (isAdLoading) return;
     if (window.show_9867079) {
@@ -175,6 +167,7 @@ export default function QuizPage() {
         .finally(() => setIsAdLoading(false));
     }
   };
+  
   const handle5050 = () => {
     if (hasUsed5050 || showFeedback || isAdLoading) return;
     if (window.show_9867079) {
@@ -199,7 +192,6 @@ export default function QuizPage() {
     }
   };
 
-
   // --- TAMPILAN (UI) ---
 
   if (gameState === 'selection') {
@@ -216,11 +208,9 @@ export default function QuizPage() {
                   </button>
                 ))}
               </div>
-               {/* <-- [TOMBOL BARU] untuk melihat leaderboard --> */}
               <button onClick={() => setGameState('leaderboard')} style={{...styles.secondaryButton, marginTop: '20px', width: '100%'}}>🏆 Lihat Papan Peringkat</button>
             </>
           ) : (
-            // ... (tampilan pemilihan level tidak berubah)
             <>
               <h1>Pilih Level: {selectedCategory}</h1>
               <div style={styles.selectionGrid}>
@@ -265,8 +255,6 @@ export default function QuizPage() {
         <div style={styles.quizCard}>
           <h1>{lives <= 0 ? 'Yah, Nyawa Habis!' : 'Kuis Selesai!'}</h1>
           <p style={styles.finalScore}>Skor Akhir Anda: {score}</p>
-          
-          {/* <-- [FORM BARU] untuk kirim skor --> */}
           {!hasSubmitted && score > 0 && (
             <div style={styles.submitForm}>
               <input 
@@ -275,6 +263,7 @@ export default function QuizPage() {
                 value={playerName}
                 onChange={(e) => setPlayerName(e.target.value)}
                 style={styles.input}
+                maxLength={15}
               />
               <button onClick={handleSubmitScore} disabled={isSubmitting} style={styles.primaryButton}>
                 {isSubmitting ? 'Mengirim...' : 'Kirim Skor'}
@@ -282,7 +271,6 @@ export default function QuizPage() {
             </div>
           )}
           {hasSubmitted && <p style={{color: 'green'}}>Skor berhasil dikirim!</p>}
-          
           {lives <= 0 && !hasSubmitted && (
             <div style={{ margin: '10px 0' }}>
               <button onClick={handleWatchAdForLife} disabled={isAdLoading} style={{...styles.primaryButton, background: '#28a745'}}>
@@ -290,7 +278,6 @@ export default function QuizPage() {
               </button>
             </div>
           )}
-          
           <button onClick={resetQuiz} style={{...styles.secondaryButton, width: '100%', background: '#6c757d', marginTop: '10px'}}>
             Kembali ke Menu Utama
           </button>
@@ -299,18 +286,52 @@ export default function QuizPage() {
     );
   }
 
-  // ... Tampilan kuis berjalan tidak berubah ...
+  // Bagian ini yang sebelumnya hilang dan menyebabkan 'unused variable'
   const currentQuestion = currentQuestions[currentQuestionIndex];
   return (
     <main style={styles.container}>
-      {/* ... (salin seluruh bagian JSX untuk gameState 'playing' dari kode sebelumnya) ... */}
+      <div style={styles.quizCard}>
+        <div style={styles.header}>
+          <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} / {currentQuestions.length}</span>
+          <div style={styles.livesContainer}>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <span key={index} style={{ opacity: index < lives ? 1 : 0.2 }}>❤️</span>
+            ))}
+          </div>
+          <span style={styles.score}>Skor: {score}</span>
+        </div>
+        <div style={styles.timerWrapper}>
+          Waktu Tersisa: <span style={{...styles.timer, color: timeLeft <= 5 ? 'red' : 'black'}}>{timeLeft}</span>
+        </div>
+        <h2 style={styles.questionText}>{currentQuestion.question}</h2>
+        <div style={styles.optionsGrid}>
+          {currentQuestion.options.map((option) => {
+            const isCorrect = option === currentQuestion.correctAnswer;
+            const isSelected = option === selectedAnswer;
+            const isDisabled = disabledOptions.includes(option);
+            let buttonStyle = styles.optionButton;
+            if (isDisabled) buttonStyle = {...buttonStyle, opacity: 0, pointerEvents: 'none'};
+            if (showFeedback && isCorrect) buttonStyle = {...buttonStyle, ...styles.correctAnswer, opacity: 1};
+            else if (showFeedback && isSelected && !isCorrect) buttonStyle = {...buttonStyle, ...styles.wrongAnswer, opacity: 1};
+            return (<button key={option} onClick={() => handleAnswerClick(option)} style={buttonStyle} disabled={showFeedback || isDisabled}>{option}</button>);
+          })}
+        </div>
+        {showFeedback ? (
+          <button onClick={handleNextQuestion} style={{...styles.primaryButton, marginTop: '20px'}}>Lanjut</button>
+        ) : (
+          <div style={styles.helpButtonsContainer}>
+            <button onClick={handle5050} disabled={hasUsed5050 || isAdLoading} style={styles.helpButton}>
+              50:50 (Iklan)
+            </button>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
 
 // --- STYLING ---
 const styles: { [key: string]: React.CSSProperties } = {
-  // ... (Salin semua style lama Anda, dan tambahkan beberapa style baru di bawah)
   container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f0f2f5', fontFamily: 'sans-serif' },
   quizCard: { background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '90%', maxWidth: '500px', textAlign: 'center' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '14px', color: '#555' },
@@ -326,7 +347,7 @@ const styles: { [key: string]: React.CSSProperties } = {
   secondaryButton: { padding: '12px', fontSize: '14px', border: '1px solid #6c757d', borderRadius: '8px', background: 'transparent', color: '#6c757d', cursor: 'pointer' },
   helpButtonsContainer: { display: 'flex', gap: '10px', marginTop: '20px' },
   helpButton: { flex: 1, padding: '12px', fontSize: '14px', border: 'none', borderRadius: '8px', background: '#6c757d', color: 'white', cursor: 'pointer' },
-  correctAnswer: { background: '#28a745', color: 'white', borderColor: '#28a745' },
+  correctAnswer: { background: '#28a_745', color: 'white', borderColor: '#28a745' },
   wrongAnswer: { background: '#dc3545', color: 'white', borderColor: '#dc3545' },
   finalScore: { fontSize: '24px', fontWeight: 'bold', margin: '20px 0' },
   selectionGrid: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' },
