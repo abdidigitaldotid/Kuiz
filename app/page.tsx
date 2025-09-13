@@ -1,119 +1,137 @@
 // app/page.tsx
+'use client';
 
-"use client";
-
-import { useState, useEffect, useCallback } from 'react';
-import { allQuizData, pointsPerDifficulty, Question } from './quizData';
-import useSound from 'use-sound';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useWebApp } from '@telegram-apps/sdk-react';
 
-// Import komponen-komponen baru kita
+// Asumsi Anda memiliki file-file ini
+import { allQuizData, Question } from './quizData'; 
 import { SelectionScreen } from './components/SelectionScreen';
-import { QuizPlayScreen } from './components/QuizPlayScreen';
-import { FinishedScreen } from './components/FinishedScreen';
-import { LeaderboardScreen } from './components/LeaderboardScreen';
+import { QuizScreen } from './components/QuizScreen';
+import { ResultScreen } from './components/ResultScreen';
 
-interface LeaderboardEntry { name: string; score: number; }
-type GameState = 'selection' | 'playing' | 'finished' | 'leaderboard';
+// Tipe untuk tingkat kesulitan
+type Difficulty = 'easy' | 'medium' | 'hard';
 
-export default function QuizPage() {
-  // --- STATE MANAGEMENT (Semua state tetap di sini) ---
-  const [gameState, setGameState] = useState<GameState>('selection');
-  // ... (semua state lainnya tetap sama persis seperti kode Anda sebelumnya)
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
-  const [currentQuestions, setCurrentQuestions] = useState<Question[]>([]);
-  const [lives, setLives] = useState(3);
+export default function KuizPage() {
+  // --- State untuk Telegram Web App ---
+  const webApp = useWebApp();
+
+  // --- State untuk Kontrol Game ---
+  const [gameState, setGameState] = useState<'selecting' | 'playing' | 'finished'>('selecting');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+
+  // --- State untuk Skor dan Kehidupan (Lives) ---
   const [score, setScore] = useState(0);
+  const [lives, setLives] = useState(3);
+
+  // --- State untuk Interaksi Kuis ---
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [isAdLoading, setIsAdLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(15);
   const [isPaused, setIsPaused] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(15); // Waktu per pertanyaan
+
+  // --- State untuk Power-ups (Contoh) ---
   const [hasUsed5050, setHasUsed5050] = useState(false);
   const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
-  const [playerName, setPlayerName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
+
+  // --- State untuk Leaderboard (Contoh) ---
+  const [leaderboardData, setLeaderboardData] = useState([]);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
 
-  // --- INISIALISASI (Semua hooks tetap di sini) ---
-  const WebApp = useWebApp();
-  const [playCorrect] = useSound('/correct.mp3', { volume: 0.5 });
-  const [playWrong] = useSound('/wrong.mp3', { volume: 0.5 });
-  const [playClick] = useSound('/click.mp3', { volume: 0.25 });
-  const [playFinish] = useSound('/finish.mp3', { volume: 0.6 });
-
-  // --- FUNGSI-FUNGSI LOGIKA (Semua fungsi tetap di sini) ---
-  const handleWrongAnswer = useCallback(() => { /* ... */ });
-  // ... (semua useEffect dan fungsi-fungsi lainnya tetap di sini, tidak ada yang berubah)
+  // Efek untuk inisialisasi aplikasi Telegram
+  useEffect(() => {
+    if (webApp) {
+      webApp.ready();
+      webApp.expand();
+    }
+  }, [webApp]);
   
+  // Fungsi untuk memulai kuis setelah memilih kesulitan
+  const handleStartQuiz = (difficulty: Difficulty) => {
+    setSelectedDifficulty(difficulty);
+    setQuestions(allQuizData[difficulty]); // Ambil pertanyaan sesuai kesulitan
+    setGameState('playing');
+    // Reset state lain jika perlu
+    setScore(0);
+    setLives(3);
+    setCurrentQuestionIndex(0);
+  };
 
-  // --- RENDER KONDISIONAL ---
-  // "Otak" akan memutuskan komponen mana yang akan ditampilkan
-  if (gameState === 'selection') {
-    return (
-      <SelectionScreen
-        selectedCategory={selectedCategory}
-        onCategorySelect={(category) => { playClick(); setSelectedCategory(category); }}
-        onDifficultySelect={(difficulty) => { playClick(); setSelectedDifficulty(difficulty); setCurrentQuestions(allQuizData[selectedCategory][difficulty]); setGameState('playing'); }}
-        onShowLeaderboard={() => { playClick(); setGameState('leaderboard'); }}
-        onBack={() => { playClick(); setSelectedCategory(''); }}
-      />
-    );
+  // Fungsi untuk menangani jawaban yang dipilih
+  const handleAnswerSelect = (answer: string) => {
+    if (selectedAnswer) return; // Jangan biarkan memilih lagi jika sudah memilih
+
+    setSelectedAnswer(answer);
+    setShowFeedback(true);
+
+    const currentQuestion = questions[currentQuestionIndex];
+    if (answer === currentQuestion.correctAnswer) {
+      // Jawaban Benar
+      setScore(prev => prev + 10); // Contoh penambahan skor
+    } else {
+      // Jawaban Salah
+      setLives(prev => prev - 1);
+    }
+
+    // Pindah ke pertanyaan berikutnya setelah beberapa detik
+    setTimeout(() => {
+      if (currentQuestionIndex < questions.length - 1) {
+        setCurrentQuestionIndex(prev => prev + 1);
+        setSelectedAnswer(null);
+        setShowFeedback(false);
+        setTimeLeft(15); // Reset waktu
+      } else {
+        setGameState('finished'); // Kuis selesai
+      }
+    }, 2000); // Tunggu 2 detik
+  };
+
+  // Fungsi untuk memulai ulang kuis
+  const handleRestart = () => {
+    setGameState('selecting');
+    // Reset semua state ke nilai awal
+    setSelectedDifficulty(null);
+    setQuestions([]);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setLives(3);
+    setSelectedAnswer(null);
+    setShowFeedback(false);
+  };
+
+  // Render komponen berdasarkan state game
+  if (gameState === 'selecting') {
+    return <SelectionScreen onSelectDifficulty={handleStartQuiz} />;
   }
 
-  if (gameState === 'leaderboard') {
+  if (gameState === 'playing' && questions.length > 0) {
     return (
-      <LeaderboardScreen
-        isLoading={isLoadingLeaderboard}
-        leaderboardData={leaderboardData}
-        onBack={() => { playClick(); setGameState('selection'); }}
+      <QuizScreen
+        question={questions[currentQuestionIndex]}
+        onAnswerSelect={handleAnswerSelect}
+        score={score}
+        lives={lives}
+        questionNumber={currentQuestionIndex + 1}
+        totalQuestions={questions.length}
+        selectedAnswer={selectedAnswer}
+        showFeedback={showFeedback}
       />
     );
   }
 
   if (gameState === 'finished') {
     return (
-      <FinishedScreen
+      <ResultScreen
         score={score}
-        lives={lives}
-        playerName={playerName}
-        isSubmitting={isSubmitting}
-        hasSubmitted={hasSubmitted}
-        isAdLoading={isAdLoading}
-        onPlayerNameChange={setPlayerName}
-        onSubmitScore={() => { playClick(); /* ... fungsi handleSubmitScore ... */ }}
-        onWatchAdForLife={() => { /* ... fungsi handleWatchAdForLife ... */ }}
-        onResetQuiz={resetQuiz}
-        onShareScore={() => { /* ... fungsi handleShareScore ... */ }}
+        totalQuestions={questions.length}
+        onRestart={handleRestart}
       />
     );
   }
 
-  if (gameState === 'playing') {
-    const currentQuestion = currentQuestions[currentQuestionIndex];
-    return (
-      <QuizPlayScreen
-        currentQuestion={currentQuestion}
-        currentQuestionIndex={currentQuestionIndex}
-        totalQuestions={currentQuestions.length}
-        lives={lives}
-        score={score}
-        timeLeft={timeLeft}
-        selectedAnswer={selectedAnswer}
-        showFeedback={showFeedback}
-        disabledOptions={disabledOptions}
-        isAdLoading={isAdLoading}
-        hasUsed5050={hasUsed5050}
-        onAnswerClick={handleAnswerClick}
-        onNextQuestion={handleNextQuestion}
-        on5050={handle5050}
-      />
-    );
-  }
-
-  return null; // Fallback
+  // Fallback jika terjadi state yang tidak valid
+  return <div>Memuat Kuis...</div>;
 }
