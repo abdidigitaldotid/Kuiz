@@ -3,42 +3,39 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { allQuizData, pointsPerDifficulty, Question } from './quizData';
 
-// --- DATA KUIS ---
-const quizData = [
-  { question: "Apa ibukota Indonesia?", options: ["Jakarta", "Bandung", "Surabaya", "Medan"], correctAnswer: "Jakarta" },
-  { question: "Siapakah presiden pertama Indonesia?", options: ["Soeharto", "B.J. Habibie", "Soekarno", "Joko Widodo"], correctAnswer: "Soekarno" },
-  { question: "Lagu kebangsaan Indonesia adalah...", options: ["Garuda Pancasila", "Indonesia Raya", "Maju Tak Gentar", "Padamu Negeri"], correctAnswer: "Indonesia Raya" },
-  { question: "Berapa hasil dari 5 x 10?", options: ["40", "55", "60", "50"], correctAnswer: "50" },
-];
+type GameState = 'selection' | 'playing' | 'finished';
 
 export default function QuizPage() {
   // --- STATE MANAGEMENT ---
+  const [gameState, setGameState] = useState<GameState>('selection');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
+  const [currentQuestions, setCurrentQuestions] = useState<Question[]>([]);
   const [lives, setLives] = useState(3);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [isQuizOver, setIsQuizOver] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15);
   const [isPaused, setIsPaused] = useState(false);
   const [hasUsed5050, setHasUsed5050] = useState(false);
   const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
 
-  // --- LOGIKA-LOGIKA (useEffect tetap sama) ---
+  // --- LOGIKA-LOGIKA (useEffect) ---
   useEffect(() => {
-    if (showFeedback || isQuizOver || isPaused) return;
+    if (gameState !== 'playing' || showFeedback || isPaused) return;
     if (timeLeft === 0) {
       handleWrongAnswer();
       return;
     }
     const timerId = setInterval(() => setTimeLeft(timeLeft - 1), 1000);
     return () => clearInterval(timerId);
-  }, [timeLeft, showFeedback, isQuizOver, isPaused]);
+  }, [timeLeft, showFeedback, isPaused, gameState]);
 
   useEffect(() => {
-    // ... (kode iklan periodik tidak berubah)
     const adIntervalId = setInterval(() => {
       if (window.show_9867079) {
         setIsPaused(true);
@@ -51,21 +48,48 @@ export default function QuizPage() {
     return () => clearInterval(adIntervalId);
   }, []);
 
-  // --- FUNGSI-FUNGSI KUIS ---
+  // --- FUNGSI ALUR PERMAINAN ---
+  const handleCategorySelect = (category: string) => {
+    setSelectedCategory(category);
+  };
+
+  const handleDifficultySelect = (difficulty: string) => {
+    setSelectedDifficulty(difficulty);
+    setCurrentQuestions(allQuizData[selectedCategory][difficulty]);
+    setGameState('playing');
+  };
+
+  const resetQuiz = () => {
+    setGameState('selection');
+    setSelectedCategory('');
+    setSelectedDifficulty('');
+    setCurrentQuestions([]);
+    setLives(3);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setSelectedAnswer(null);
+    setShowFeedback(false);
+    setTimeLeft(15);
+    setIsPaused(false);
+    setHasUsed5050(false);
+    setDisabledOptions([]);
+  };
+
+  // --- FUNGSI LOGIKA KUIS ---
   const handleWrongAnswer = () => {
     const newLives = lives - 1;
     setLives(newLives);
     setShowFeedback(true);
     if (newLives <= 0) {
-      setIsQuizOver(true);
+      setGameState('finished');
     }
   };
 
   const handleAnswerClick = (answer: string) => {
     if (showFeedback) return;
     setSelectedAnswer(answer);
-    if (answer === quizData[currentQuestionIndex].correctAnswer) {
-      setScore(score + 10);
+    if (answer === currentQuestions[currentQuestionIndex].correctAnswer) {
+      setScore(score + pointsPerDifficulty[selectedDifficulty!]);
       setShowFeedback(true);
     } else {
       handleWrongAnswer();
@@ -77,48 +101,15 @@ export default function QuizPage() {
     setSelectedAnswer(null);
     setTimeLeft(15);
     setDisabledOptions([]);
-    if (currentQuestionIndex < quizData.length - 1) {
+    if (currentQuestionIndex < currentQuestions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      setIsQuizOver(true);
+      setGameState('finished');
     }
   };
 
-  const resetQuiz = () => {
-    setLives(3);
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    setSelectedAnswer(null);
-    setShowFeedback(false);
-    setIsQuizOver(false);
-    setTimeLeft(15);
-    setIsPaused(false);
-    setHasUsed5050(false);
-    setDisabledOptions([]);
-  };
-
-  const handleShowRewardedAd = () => {
-    // ... (fungsi ini tetap sama, untuk bantuan melihat jawaban)
-    if (isAdLoading || showFeedback) return;
-    if (window.show_9867079) {
-      setIsPaused(true);
-      setIsAdLoading(true);
-      window.show_9867079()
-        .then(() => {
-          alert("Terima kasih! Jawaban yang benar telah ditandai.");
-          setShowFeedback(true);
-          setSelectedAnswer(quizData[currentQuestionIndex].correctAnswer);
-        })
-        .catch((error) => console.error("Iklan Gagal:", error))
-        .finally(() => {
-          setIsPaused(false);
-          setIsAdLoading(false);
-        });
-    }
-  };
-
+  // --- FUNGSI-FUNGSI IKLAN ---
   const handleWatchAdForLife = () => {
-    // ... (fungsi ini tetap sama)
     if (isAdLoading) return;
     if (window.show_9867079) {
       setIsAdLoading(true);
@@ -126,7 +117,7 @@ export default function QuizPage() {
         .then(() => {
           alert('Selamat! Kamu mendapatkan 1 nyawa tambahan!');
           setLives(1);
-          setIsQuizOver(false);
+          setGameState('playing');
           setShowFeedback(false);
           setSelectedAnswer(null);
           setTimeLeft(15);
@@ -135,32 +126,24 @@ export default function QuizPage() {
         .finally(() => setIsAdLoading(false));
     }
   };
-
-  // <-- [FUNGSI DIPERBARUI] FUNGSI 50:50 SEKARANG MEMUNCULKAN IKLAN ---
+  
   const handle5050 = () => {
     if (hasUsed5050 || showFeedback || isAdLoading) return;
-
     if (window.show_9867079) {
       setIsPaused(true);
       setIsAdLoading(true);
-
       window.show_9867079()
         .then(() => {
-          // Logika 50:50 HANYA berjalan setelah iklan sukses ditonton
           alert("Terima kasih! Dua pilihan salah telah dihilangkan.");
-          const currentQuestion = quizData[currentQuestionIndex];
+          const currentQuestion = currentQuestions[currentQuestionIndex];
           const correctAnswer = currentQuestion.correctAnswer;
           const wrongOptions = currentQuestion.options.filter(opt => opt !== correctAnswer);
           const oneWrongOptionToShow = wrongOptions[Math.floor(Math.random() * wrongOptions.length)];
           const optionsToDisable = wrongOptions.filter(opt => opt !== oneWrongOptionToShow);
-
           setDisabledOptions(optionsToDisable);
-          setHasUsed5050(true); // Tandai sudah digunakan setelah bantuan diberikan
+          setHasUsed5050(true);
         })
-        .catch((error) => {
-          console.error("Iklan 50:50 Gagal:", error);
-          alert("Oops, iklan gagal dimuat. Bantuan 50:50 tidak bisa digunakan saat ini.");
-        })
+        .catch((error) => alert("Oops, iklan gagal dimuat."))
         .finally(() => {
           setIsPaused(false);
           setIsAdLoading(false);
@@ -169,8 +152,41 @@ export default function QuizPage() {
   };
 
   // --- TAMPILAN (UI) ---
-  if (isQuizOver) {
-    // ... (tampilan game over tidak berubah)
+
+  if (gameState === 'selection') {
+    return (
+      <main style={styles.container}>
+        <div style={styles.quizCard}>
+          {!selectedCategory ? (
+            <>
+              <h1>Pilih Kategori</h1>
+              <div style={styles.selectionGrid}>
+                {Object.keys(allQuizData).map(category => (
+                  <button key={category} onClick={() => handleCategorySelect(category)} style={styles.primaryButton}>
+                    {category}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <h1>Pilih Level: {selectedCategory}</h1>
+              <div style={styles.selectionGrid}>
+                {Object.keys(allQuizData[selectedCategory]).map(difficulty => (
+                  <button key={difficulty} onClick={() => handleDifficultySelect(difficulty)} style={styles.primaryButton}>
+                    {difficulty.charAt(0).toUpperCase() + difficulty.slice(1)} (+{pointsPerDifficulty[difficulty]} Poin)
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setSelectedCategory('')} style={{...styles.secondaryButton, marginTop: '20px', width: '100%'}}>Kembali</button>
+            </>
+          )}
+        </div>
+      </main>
+    );
+  }
+
+  if (gameState === 'finished') {
     return (
       <main style={styles.container}>
         <div style={styles.quizCard}>
@@ -184,20 +200,19 @@ export default function QuizPage() {
             </div>
           )}
           <button onClick={resetQuiz} style={{...styles.secondaryButton, width: '100%', background: '#6c757d'}}>
-            Mulai Kuis Baru
+            Kembali ke Menu Utama
           </button>
         </div>
       </main>
     );
   }
 
-  const currentQuestion = quizData[currentQuestionIndex];
+  const currentQuestion = currentQuestions[currentQuestionIndex];
   return (
     <main style={styles.container}>
       <div style={styles.quizCard}>
-        {/* ... (tampilan header dan timer tidak berubah) ... */}
         <div style={styles.header}>
-          <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} / {quizData.length}</span>
+          <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} / {currentQuestions.length}</span>
           <div style={styles.livesContainer}>
             {Array.from({ length: 3 }).map((_, index) => (
               <span key={index} style={{ opacity: index < lives ? 1 : 0.2 }}>❤️</span>
@@ -209,7 +224,6 @@ export default function QuizPage() {
           Waktu Tersisa: <span style={{...styles.timer, color: timeLeft <= 5 ? 'red' : 'black'}}>{timeLeft}</span>
         </div>
         <h2 style={styles.questionText}>{currentQuestion.question}</h2>
-        
         <div style={styles.optionsGrid}>
           {currentQuestion.options.map((option) => {
             const isCorrect = option === currentQuestion.correctAnswer;
@@ -222,7 +236,6 @@ export default function QuizPage() {
             return (<button key={option} onClick={() => handleAnswerClick(option)} style={buttonStyle} disabled={showFeedback || isDisabled}>{option}</button>);
           })}
         </div>
-        
         {showFeedback ? (
           <button onClick={handleNextQuestion} style={{...styles.primaryButton, marginTop: '20px'}}>Lanjut</button>
         ) : (
@@ -230,9 +243,7 @@ export default function QuizPage() {
             <button onClick={handle5050} disabled={hasUsed5050 || isAdLoading} style={styles.helpButton}>
               50:50 (Iklan)
             </button>
-            <button onClick={handleShowRewardedAd} disabled={isAdLoading} style={{...styles.helpButton, flexGrow: 2}}>
-              {isAdLoading ? 'Memuat...' : '💡 Lihat Jawaban (Iklan)'}
-            </button>
+            {/* Tombol bantuan lihat jawaban bisa ditambahkan lagi jika mau, tapi kita hilangkan dulu agar tidak terlalu ramai */}
           </div>
         )}
       </div>
@@ -242,7 +253,6 @@ export default function QuizPage() {
 
 // --- STYLING ---
 const styles: { [key: string]: React.CSSProperties } = {
-  // ... (semua style lama Anda tetap sama)
   container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f0f2f5', fontFamily: 'sans-serif' },
   quizCard: { background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '90%', maxWidth: '500px', textAlign: 'center' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '14px', color: '#555' },
@@ -255,10 +265,11 @@ const styles: { [key: string]: React.CSSProperties } = {
   optionsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', minHeight: '120px' },
   optionButton: { width: '100%', padding: '15px', fontSize: '16px', border: '2px solid #ddd', borderRadius: '8px', background: '#f9f9f9', cursor: 'pointer', transition: 'all 0.2s' },
   primaryButton: { width: '100%', padding: '15px', fontSize: '18px', border: 'none', borderRadius: '8px', background: '#007bff', color: 'white', cursor: 'pointer', fontWeight: 'bold' },
-  secondaryButton: { width: '100%', padding: '12px', fontSize: '14px', border: 'none', borderRadius: '8px', background: '#6c757d', color: 'white', cursor: 'pointer' },
+  secondaryButton: { padding: '12px', fontSize: '14px', border: '1px solid #6c757d', borderRadius: '8px', background: 'transparent', color: '#6c757d', cursor: 'pointer' },
   helpButtonsContainer: { display: 'flex', gap: '10px', marginTop: '20px' },
   helpButton: { flex: 1, padding: '12px', fontSize: '14px', border: 'none', borderRadius: '8px', background: '#6c757d', color: 'white', cursor: 'pointer' },
   correctAnswer: { background: '#28a745', color: 'white', borderColor: '#28a745' },
   wrongAnswer: { background: '#dc3545', color: 'white', borderColor: '#dc3545' },
   finalScore: { fontSize: '24px', fontWeight: 'bold', margin: '20px 0' },
+  selectionGrid: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' },
 };
