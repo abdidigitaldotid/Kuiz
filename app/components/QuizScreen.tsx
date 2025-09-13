@@ -1,7 +1,7 @@
 // app/components/QuizScreen.tsx
 'use client';
 
-import { Question } from '../quizData'; // Asumsi tipe Question ada di quizData
+import { Question } from '../quizData';
 
 interface QuizScreenProps {
   question: Question;
@@ -31,7 +31,10 @@ export function QuizScreen({
         <span>Nyawa: {'❤️'.repeat(lives)}</span>
       </div>
       <h2>Pertanyaan {questionNumber} dari {totalQuestions}</h2>
-      <p style={{ fontSize: '1.2em', minHeight: '60px' }}>{question.questionText}</p>
+      {/* DIUBAH: dari question.questionText menjadi question.question 
+        agar cocok dengan struktur data Anda.
+      */}
+      <p style={{ fontSize: '1.2em', minHeight: '60px' }}>{question.question}</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '30px' }}>
         {question.options.map((option) => {
@@ -62,4 +65,3 @@ export function QuizScreen({
     </div>
   );
 }
-
