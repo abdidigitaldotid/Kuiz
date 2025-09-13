@@ -14,6 +14,7 @@ const quizData = [
 
 export default function QuizPage() {
   // --- STATE MANAGEMENT ---
+  const [lives, setLives] = useState(3); // <-- STATE BARU UNTUK NYAWA
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -21,62 +22,61 @@ export default function QuizPage() {
   const [isQuizOver, setIsQuizOver] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15);
-  const [isPaused, setIsPaused] = useState(false); // <-- State untuk menjeda timer
+  const [isPaused, setIsPaused] = useState(false);
 
   // --- LOGIKA TIMER PERTANYAAN 15 DETIK ---
   useEffect(() => {
-    // Timer tidak akan berjalan jika: kuis selesai, jawaban sudah ditampilkan, atau sedang dijeda
     if (showFeedback || isQuizOver || isPaused) return;
 
     if (timeLeft === 0) {
-      setShowFeedback(true);
-      setSelectedAnswer(null); // Dianggap salah karena waktu habis
+      handleWrongAnswer(); // <-- Panggil fungsi handleWrongAnswer saat waktu habis
       return;
     }
-    // Set interval untuk mengurangi waktu setiap 1 detik
     const timerId = setInterval(() => setTimeLeft(timeLeft - 1), 1000);
-    // Hentikan interval jika state berubah
     return () => clearInterval(timerId);
-  }, [timeLeft, showFeedback, isQuizOver, isPaused]); // <-- isPaused ditambahkan sebagai dependency
+  }, [timeLeft, showFeedback, isQuizOver, isPaused]);
 
-  // --- LOGIKA IKLAN PERIODIK SETIAP 90 DETIK ---
+  // --- LOGIKA IKLAN PERIODIK (tetap sama) ---
   useEffect(() => {
-    console.log("Memulai interval iklan per 90 detik.");
-  
+    // ... (kode iklan periodik tidak berubah)
     const adIntervalId = setInterval(() => {
       if (window.show_9867079) {
-        console.log("Menjeda timer untuk iklan periodik...");
-        setIsPaused(true); // <-- JEDA TIMER
-  
+        setIsPaused(true);
         window.show_9867079({
           type: 'inApp',
           inAppSettings: { frequency: 2, capping: 0.1, interval: 30, timeout: 5, everyPage: false },
-        }).finally(() => {
-          console.log("Melanjutkan timer...");
-          setIsPaused(false); // <-- LANJUTKAN TIMER
-        });
+        }).finally(() => setIsPaused(false));
       }
-    }, 90000); // 90 detik
-  
-    // Hentikan interval jika pengguna menutup mini app
-    return () => {
-      clearInterval(adIntervalId);
-      console.log("Menghentikan interval iklan.");
-    };
-  }, []); // <-- Array kosong agar hanya berjalan sekali saat aplikasi dibuka
-
+    }, 90000);
+    return () => clearInterval(adIntervalId);
+  }, []);
 
   // --- FUNGSI-FUNGSI KUIS ---
+
+  // <-- FUNGSI BANTUAN BARU UNTUK MENANGANI JAWABAN SALAH ---
+  const handleWrongAnswer = () => {
+    const newLives = lives - 1;
+    setLives(newLives);
+    setShowFeedback(true);
+    if (newLives === 0) {
+      setIsQuizOver(true); // Langsung akhiri kuis jika nyawa habis
+    }
+  };
+
   const handleAnswerClick = (answer: string) => {
     if (showFeedback) return;
-    setShowFeedback(true);
+
     setSelectedAnswer(answer);
     if (answer === quizData[currentQuestionIndex].correctAnswer) {
       setScore(score + 10);
+      setShowFeedback(true);
+    } else {
+      handleWrongAnswer(); // <-- Panggil fungsi ini jika jawaban salah
     }
   };
 
   const handleNextQuestion = () => {
+    // ... (fungsi ini tetap sama)
     setShowFeedback(false);
     setSelectedAnswer(null);
     setTimeLeft(15);
@@ -88,22 +88,22 @@ export default function QuizPage() {
   };
 
   const resetQuiz = () => {
+    setLives(3); // <-- RESET NYAWA
     setCurrentQuestionIndex(0);
     setScore(0);
     setSelectedAnswer(null);
     setShowFeedback(false);
     setIsQuizOver(false);
     setTimeLeft(15);
-    setIsPaused(false); // Pastikan timer tidak dalam keadaan terjeda saat reset
+    setIsPaused(false);
   };
 
   const handleShowRewardedAd = () => {
+    // ... (fungsi ini tetap sama)
     if (isAdLoading || showFeedback) return;
     if (window.show_9867079) {
-      console.log("Menjeda timer untuk iklan rewarded...");
-      setIsPaused(true); // <-- JEDA TIMER
+      setIsPaused(true);
       setIsAdLoading(true);
-
       window.show_9867079()
         .then(() => {
           alert("Terima kasih! Jawaban yang benar telah ditandai.");
@@ -112,20 +112,19 @@ export default function QuizPage() {
         })
         .catch((error) => console.error("Iklan Gagal:", error))
         .finally(() => {
-          console.log("Melanjutkan timer...");
-          setIsPaused(false); // <-- LANJUTKAN TIMER
+          setIsPaused(false);
           setIsAdLoading(false);
         });
     }
   };
-
 
   // --- TAMPILAN (UI) ---
   if (isQuizOver) {
     return (
       <main style={styles.container}>
         <div style={styles.quizCard}>
-          <h1>Kuis Selesai!</h1>
+          {/* <-- Pesan Game Over yang dinamis */}
+          <h1>{lives === 0 ? 'Yah, Nyawa Habis!' : 'Kuis Selesai!'}</h1>
           <p style={styles.finalScore}>Skor Akhir Anda: {score}</p>
           <button onClick={resetQuiz} style={styles.primaryButton}>Main Lagi</button>
         </div>
@@ -138,9 +137,17 @@ export default function QuizPage() {
     <main style={styles.container}>
       <div style={styles.quizCard}>
         <div style={styles.header}>
-          <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} dari {quizData.length}</span>
+          <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} / {quizData.length}</span>
+          {/* <-- Tampilan Nyawa Baru */}
+          <div style={styles.livesContainer}>
+            {Array.from({ length: 3 }).map((_, index) => (
+              <span key={index} style={{ opacity: index < lives ? 1 : 0.2 }}>❤️</span>
+            ))}
+          </div>
           <span style={styles.score}>Skor: {score}</span>
         </div>
+        
+        {/* ... sisa UI tetap sama ... */}
         <div style={styles.timerWrapper}>
           Waktu Tersisa: <span style={{...styles.timer, color: timeLeft <= 5 ? 'red' : 'black'}}>{timeLeft}</span>
         </div>
@@ -169,10 +176,12 @@ export default function QuizPage() {
 
 // --- STYLING ---
 const styles: { [key: string]: React.CSSProperties } = {
+  // ... (salin semua style lama Anda)
   container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f0f2f5', fontFamily: 'sans-serif' },
   quizCard: { background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '90%', maxWidth: '500px' },
-  header: { display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px', color: '#555' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '14px', color: '#555' }, // <-- alignItems: 'center' ditambahkan
   questionCounter: {},
+  livesContainer: { display: 'flex', gap: '4px', fontSize: '18px' }, // <-- Style baru untuk nyawa
   score: { fontWeight: 'bold' },
   timerWrapper: { textAlign: 'center', marginBottom: '15px', fontSize: '18px' },
   timer: { fontWeight: 'bold', background: '#eee', padding: '5px 10px', borderRadius: '5px' },
