@@ -21,44 +21,52 @@ export default function QuizPage() {
   const [isQuizOver, setIsQuizOver] = useState(false);
   const [isAdLoading, setIsAdLoading] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15);
+  const [isPaused, setIsPaused] = useState(false); // <-- State untuk menjeda timer
 
-  // --- LOGIKA TIMER PERTANYAAN 15 DETIK---
+  // --- LOGIKA TIMER PERTANYAAN 15 DETIK ---
   useEffect(() => {
-    if (showFeedback || isQuizOver) return;
+    // Timer tidak akan berjalan jika: kuis selesai, jawaban sudah ditampilkan, atau sedang dijeda
+    if (showFeedback || isQuizOver || isPaused) return;
+
     if (timeLeft === 0) {
       setShowFeedback(true);
-      setSelectedAnswer(null);
+      setSelectedAnswer(null); // Dianggap salah karena waktu habis
       return;
     }
+    // Set interval untuk mengurangi waktu setiap 1 detik
     const timerId = setInterval(() => setTimeLeft(timeLeft - 1), 1000);
+    // Hentikan interval jika state berubah
     return () => clearInterval(timerId);
-  }, [timeLeft, showFeedback, isQuizOver]);
+  }, [timeLeft, showFeedback, isQuizOver, isPaused]); // <-- isPaused ditambahkan sebagai dependency
 
-  // --- [LOGIKA BARU] IKLAN MUNCUL SETIAP 90 DETIK SECARA BERULANG ---
+  // --- LOGIKA IKLAN PERIODIK SETIAP 90 DETIK ---
   useEffect(() => {
     console.log("Memulai interval iklan per 90 detik.");
   
     const adIntervalId = setInterval(() => {
-      // Selama aplikasi terbuka, iklan ini akan coba muncul setiap 90 detik
       if (window.show_9867079) {
-        console.log("Waktunya iklan interstitial periodik (90 detik)!");
+        console.log("Menjeda timer untuk iklan periodik...");
+        setIsPaused(true); // <-- JEDA TIMER
+  
         window.show_9867079({
           type: 'inApp',
           inAppSettings: { frequency: 2, capping: 0.1, interval: 30, timeout: 5, everyPage: false },
+        }).finally(() => {
+          console.log("Melanjutkan timer...");
+          setIsPaused(false); // <-- LANJUTKAN TIMER
         });
       }
-    }, 90000); // 90 detik = 90,000 milidetik
+    }, 90000); // 90 detik
   
-    // Fungsi cleanup: Hentikan interval jika pengguna menutup mini app
+    // Hentikan interval jika pengguna menutup mini app
     return () => {
       clearInterval(adIntervalId);
       console.log("Menghentikan interval iklan.");
     };
-  }, []); // <-- Array kosong berarti ini hanya akan di-set SATU KALI saat aplikasi pertama kali dibuka.
+  }, []); // <-- Array kosong agar hanya berjalan sekali saat aplikasi dibuka
 
 
   // --- FUNGSI-FUNGSI KUIS ---
-  // ... (Tidak ada perubahan di semua fungsi kuis)
   const handleAnswerClick = (answer: string) => {
     if (showFeedback) return;
     setShowFeedback(true);
@@ -86,12 +94,16 @@ export default function QuizPage() {
     setShowFeedback(false);
     setIsQuizOver(false);
     setTimeLeft(15);
+    setIsPaused(false); // Pastikan timer tidak dalam keadaan terjeda saat reset
   };
 
   const handleShowRewardedAd = () => {
     if (isAdLoading || showFeedback) return;
     if (window.show_9867079) {
+      console.log("Menjeda timer untuk iklan rewarded...");
+      setIsPaused(true); // <-- JEDA TIMER
       setIsAdLoading(true);
+
       window.show_9867079()
         .then(() => {
           alert("Terima kasih! Jawaban yang benar telah ditandai.");
@@ -99,13 +111,16 @@ export default function QuizPage() {
           setSelectedAnswer(quizData[currentQuestionIndex].correctAnswer);
         })
         .catch((error) => console.error("Iklan Gagal:", error))
-        .finally(() => setIsAdLoading(false));
+        .finally(() => {
+          console.log("Melanjutkan timer...");
+          setIsPaused(false); // <-- LANJUTKAN TIMER
+          setIsAdLoading(false);
+        });
     }
   };
 
 
   // --- TAMPILAN (UI) ---
-  // ... (Tidak ada perubahan di bagian UI)
   if (isQuizOver) {
     return (
       <main style={styles.container}>
