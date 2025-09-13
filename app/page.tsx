@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { allQuizData, pointsPerDifficulty, Question } from './quizData';
 import useSound from 'use-sound';
-import { useWebApp } from '@twa-dev/sdk-react';
+import { useWebApp } from '@telegram-apps/sdk-react';
 
 // Import komponen-komponen baru kita
 import { SelectionScreen } from './components/SelectionScreen';
