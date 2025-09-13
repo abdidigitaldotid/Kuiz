@@ -14,7 +14,7 @@ const quizData = [
 
 export default function QuizPage() {
   // --- STATE MANAGEMENT ---
-  const [lives, setLives] = useState(3); // <-- STATE BARU UNTUK NYAWA
+  const [lives, setLives] = useState(3);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
@@ -24,21 +24,18 @@ export default function QuizPage() {
   const [timeLeft, setTimeLeft] = useState(15);
   const [isPaused, setIsPaused] = useState(false);
 
-  // --- LOGIKA TIMER PERTANYAAN 15 DETIK ---
+  // --- LOGIKA-LOGIKA (useEffect tetap sama) ---
   useEffect(() => {
     if (showFeedback || isQuizOver || isPaused) return;
-
     if (timeLeft === 0) {
-      handleWrongAnswer(); // <-- Panggil fungsi handleWrongAnswer saat waktu habis
+      handleWrongAnswer();
       return;
     }
     const timerId = setInterval(() => setTimeLeft(timeLeft - 1), 1000);
     return () => clearInterval(timerId);
   }, [timeLeft, showFeedback, isQuizOver, isPaused]);
 
-  // --- LOGIKA IKLAN PERIODIK (tetap sama) ---
   useEffect(() => {
-    // ... (kode iklan periodik tidak berubah)
     const adIntervalId = setInterval(() => {
       if (window.show_9867079) {
         setIsPaused(true);
@@ -52,31 +49,27 @@ export default function QuizPage() {
   }, []);
 
   // --- FUNGSI-FUNGSI KUIS ---
-
-  // <-- FUNGSI BANTUAN BARU UNTUK MENANGANI JAWABAN SALAH ---
   const handleWrongAnswer = () => {
     const newLives = lives - 1;
     setLives(newLives);
     setShowFeedback(true);
-    if (newLives === 0) {
-      setIsQuizOver(true); // Langsung akhiri kuis jika nyawa habis
+    if (newLives <= 0) {
+      setIsQuizOver(true);
     }
   };
 
   const handleAnswerClick = (answer: string) => {
     if (showFeedback) return;
-
     setSelectedAnswer(answer);
     if (answer === quizData[currentQuestionIndex].correctAnswer) {
       setScore(score + 10);
       setShowFeedback(true);
     } else {
-      handleWrongAnswer(); // <-- Panggil fungsi ini jika jawaban salah
+      handleWrongAnswer();
     }
   };
 
   const handleNextQuestion = () => {
-    // ... (fungsi ini tetap sama)
     setShowFeedback(false);
     setSelectedAnswer(null);
     setTimeLeft(15);
@@ -88,7 +81,7 @@ export default function QuizPage() {
   };
 
   const resetQuiz = () => {
-    setLives(3); // <-- RESET NYAWA
+    setLives(3);
     setCurrentQuestionIndex(0);
     setScore(0);
     setSelectedAnswer(null);
@@ -117,28 +110,65 @@ export default function QuizPage() {
         });
     }
   };
+  
+  // <-- [FUNGSI BARU] UNTUK MENONTON IKLAN DAN DAPAT NYAWA ---
+  const handleWatchAdForLife = () => {
+    if (isAdLoading) return;
+    if (window.show_9867079) {
+      setIsAdLoading(true);
+      window.show_9867079()
+        .then(() => {
+          // Inilah hadiahnya!
+          alert('Selamat! Kamu mendapatkan 1 nyawa tambahan!');
+          setLives(1); // Beri 1 nyawa
+          setIsQuizOver(false); // Kembalikan ke permainan
+          setShowFeedback(false); // Ulangi pertanyaan terakhir
+          setSelectedAnswer(null);
+          setTimeLeft(15); // Reset timer pertanyaan
+        })
+        .catch((error) => {
+          console.error("Iklan Gagal:", error);
+          alert("Oops, iklan gagal dimuat. Coba lagi nanti.");
+        })
+        .finally(() => {
+          setIsAdLoading(false);
+        });
+    }
+  };
+
 
   // --- TAMPILAN (UI) ---
   if (isQuizOver) {
     return (
       <main style={styles.container}>
         <div style={styles.quizCard}>
-          {/* <-- Pesan Game Over yang dinamis */}
-          <h1>{lives === 0 ? 'Yah, Nyawa Habis!' : 'Kuis Selesai!'}</h1>
+          <h1>{lives <= 0 ? 'Yah, Nyawa Habis!' : 'Kuis Selesai!'}</h1>
           <p style={styles.finalScore}>Skor Akhir Anda: {score}</p>
-          <button onClick={resetQuiz} style={styles.primaryButton}>Main Lagi</button>
+
+          {/* <-- [TAMPILAN BARU] Tampilkan opsi ini HANYA jika kalah karena nyawa habis --> */}
+          {lives <= 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              <button onClick={handleWatchAdForLife} disabled={isAdLoading} style={{...styles.primaryButton, background: '#28a745'}}>
+                {isAdLoading ? 'Memuat...' : '❤️ Tonton Iklan (+1 Nyawa)'}
+              </button>
+            </div>
+          )}
+          
+          <button onClick={resetQuiz} style={{...styles.secondaryButton, width: '100%', background: '#6c757d'}}>
+            Mulai Kuis Baru
+          </button>
         </div>
       </main>
     );
   }
 
+  // ... Tampilan kuis berjalan tidak ada perubahan ...
   const currentQuestion = quizData[currentQuestionIndex];
   return (
     <main style={styles.container}>
       <div style={styles.quizCard}>
         <div style={styles.header}>
           <span style={styles.questionCounter}>Pertanyaan {currentQuestionIndex + 1} / {quizData.length}</span>
-          {/* <-- Tampilan Nyawa Baru */}
           <div style={styles.livesContainer}>
             {Array.from({ length: 3 }).map((_, index) => (
               <span key={index} style={{ opacity: index < lives ? 1 : 0.2 }}>❤️</span>
@@ -146,8 +176,6 @@ export default function QuizPage() {
           </div>
           <span style={styles.score}>Skor: {score}</span>
         </div>
-        
-        {/* ... sisa UI tetap sama ... */}
         <div style={styles.timerWrapper}>
           Waktu Tersisa: <span style={{...styles.timer, color: timeLeft <= 5 ? 'red' : 'black'}}>{timeLeft}</span>
         </div>
@@ -158,7 +186,7 @@ export default function QuizPage() {
             const isSelected = option === selectedAnswer;
             let buttonStyle = styles.optionButton;
             if (showFeedback && isCorrect) buttonStyle = {...buttonStyle, ...styles.correctAnswer};
-            else if (showFeedback && isSelected && !isCorrect) buttonStyle = {...buttonStyle, ...styles.wrongAnswer};
+            else if (showFeedback && isSelected && !isCorrect) buttonStyle = {...button-style, ...styles.wrongAnswer};
             return (<button key={option} onClick={() => handleAnswerClick(option)} style={buttonStyle} disabled={showFeedback}>{option}</button>);
           })}
         </div>
@@ -176,12 +204,11 @@ export default function QuizPage() {
 
 // --- STYLING ---
 const styles: { [key: string]: React.CSSProperties } = {
-  // ... (salin semua style lama Anda)
   container: { display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#f0f2f5', fontFamily: 'sans-serif' },
-  quizCard: { background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '90%', maxWidth: '500px' },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '14px', color: '#555' }, // <-- alignItems: 'center' ditambahkan
+  quizCard: { background: 'white', padding: '25px', borderRadius: '15px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '90%', maxWidth: '500px', textAlign: 'center' }, // <-- textAlign: 'center' ditambahkan
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', fontSize: '14px', color: '#555' },
   questionCounter: {},
-  livesContainer: { display: 'flex', gap: '4px', fontSize: '18px' }, // <-- Style baru untuk nyawa
+  livesContainer: { display: 'flex', gap: '4px', fontSize: '18px' },
   score: { fontWeight: 'bold' },
   timerWrapper: { textAlign: 'center', marginBottom: '15px', fontSize: '18px' },
   timer: { fontWeight: 'bold', background: '#eee', padding: '5px 10px', borderRadius: '5px' },
