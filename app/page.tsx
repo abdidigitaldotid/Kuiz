@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { allQuizData, pointsPerDifficulty, Question } from './quizData';
 
 type GameState = 'selection' | 'playing' | 'finished';
@@ -24,6 +24,16 @@ export default function QuizPage() {
   const [hasUsed5050, setHasUsed5050] = useState(false);
   const [disabledOptions, setDisabledOptions] = useState<string[]>([]);
 
+  // --- FUNGSI-FUNGSI KUIS (STABIL) ---
+  const handleWrongAnswer = useCallback(() => {
+    const newLives = lives - 1;
+    setLives(newLives);
+    setShowFeedback(true);
+    if (newLives <= 0) {
+      setGameState('finished');
+    }
+  }, [lives]);
+
   // --- LOGIKA-LOGIKA (useEffect) ---
   useEffect(() => {
     if (gameState !== 'playing' || showFeedback || isPaused) return;
@@ -33,7 +43,7 @@ export default function QuizPage() {
     }
     const timerId = setInterval(() => setTimeLeft(timeLeft - 1), 1000);
     return () => clearInterval(timerId);
-  }, [timeLeft, showFeedback, isPaused, gameState]);
+  }, [timeLeft, showFeedback, isPaused, gameState, handleWrongAnswer]);
 
   useEffect(() => {
     const adIntervalId = setInterval(() => {
@@ -76,15 +86,6 @@ export default function QuizPage() {
   };
 
   // --- FUNGSI LOGIKA KUIS ---
-  const handleWrongAnswer = () => {
-    const newLives = lives - 1;
-    setLives(newLives);
-    setShowFeedback(true);
-    if (newLives <= 0) {
-      setGameState('finished');
-    }
-  };
-
   const handleAnswerClick = (answer: string) => {
     if (showFeedback) return;
     setSelectedAnswer(answer);
@@ -122,7 +123,10 @@ export default function QuizPage() {
           setSelectedAnswer(null);
           setTimeLeft(15);
         })
-        .catch((error) => console.error("Iklan Gagal:", error))
+        .catch((error) => {
+          console.error("Iklan Gagal:", error);
+          alert("Oops, iklan gagal dimuat.");
+        })
         .finally(() => setIsAdLoading(false));
     }
   };
@@ -143,7 +147,10 @@ export default function QuizPage() {
           setDisabledOptions(optionsToDisable);
           setHasUsed5050(true);
         })
-        .catch((error) => alert("Oops, iklan gagal dimuat."))
+        .catch((error) => {
+          console.error("Iklan 50:50 Gagal:", error);
+          alert("Oops, iklan gagal dimuat.");
+        })
         .finally(() => {
           setIsPaused(false);
           setIsAdLoading(false);
@@ -243,7 +250,6 @@ export default function QuizPage() {
             <button onClick={handle5050} disabled={hasUsed5050 || isAdLoading} style={styles.helpButton}>
               50:50 (Iklan)
             </button>
-            {/* Tombol bantuan lihat jawaban bisa ditambahkan lagi jika mau, tapi kita hilangkan dulu agar tidak terlalu ramai */}
           </div>
         )}
       </div>
