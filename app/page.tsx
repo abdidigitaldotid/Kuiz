@@ -4,12 +4,16 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { allQuizData, pointsPerDifficulty, Question } from './quizData';
+import useSound from 'use-sound';
+import { useWebApp } from '@telegram-apps/sdk-react';
 
+// Tipe data untuk entri leaderboard
 interface LeaderboardEntry {
   name: string;
   score: number;
 }
 
+// Tipe untuk status permainan
 type GameState = 'selection' | 'playing' | 'finished' | 'leaderboard';
 
 export default function QuizPage() {
@@ -33,16 +37,24 @@ export default function QuizPage() {
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(false);
-  
-  // --- FUNGSI-FUNGSI KUIS (Didefinisikan di atas useEffect) ---
+
+  // --- INISIALISASI EFEK SUARA & TELEGRAM SDK ---
+  const WebApp = useWebApp();
+  const [playCorrect] = useSound('/correct.mp3', { volume: 0.5 });
+  const [playWrong] = useSound('/wrong.mp3', { volume: 0.5 });
+  const [playClick] = useSound('/click.mp3', { volume: 0.25 });
+  const [playFinish] = useSound('/finish.mp3', { volume: 0.6 });
+
+  // --- FUNGSI-FUNGSI KUIS (STABIL) ---
   const handleWrongAnswer = useCallback(() => {
     const newLives = lives - 1;
+    playWrong();
     setLives(newLives);
     setShowFeedback(true);
     if (newLives <= 0) {
       setGameState('finished');
     }
-  }, [lives]);
+  }, [lives, playWrong]);
 
   // --- LOGIKA-LOGIKA (useEffect) ---
   useEffect(() => {
@@ -76,18 +88,18 @@ export default function QuizPage() {
         .then((data: LeaderboardEntry[]) => setLeaderboardData(data))
         .catch(err => console.error("Gagal mengambil leaderboard:", err))
         .finally(() => setIsLoadingLeaderboard(false));
+    } else if (gameState === 'finished') {
+      playFinish();
     }
-  }, [gameState]);
+  }, [gameState, playFinish]);
 
   // --- FUNGSI ALUR PERMAINAN ---
-  const handleCategorySelect = (category: string) => setSelectedCategory(category);
-  const handleDifficultySelect = (difficulty: string) => {
-    setSelectedDifficulty(difficulty);
-    setCurrentQuestions(allQuizData[selectedCategory][difficulty]);
-    setGameState('playing');
-  };
+  const handleCategorySelect = (category: string) => { playClick(); setSelectedCategory(category); };
+  const handleDifficultySelect = (difficulty: string) => { playClick(); setSelectedDifficulty(difficulty); setCurrentQuestions(allQuizData[selectedCategory][difficulty]); setGameState('playing'); };
+  const handleShowLeaderboard = () => { playClick(); setGameState('leaderboard'); };
 
   const resetQuiz = () => {
+    playClick();
     setGameState('selection');
     setSelectedCategory('');
     setSelectedDifficulty('');
@@ -105,10 +117,12 @@ export default function QuizPage() {
     setPlayerName('');
   };
 
+  // --- FUNGSI LOGIKA KUIS ---
   const handleAnswerClick = (answer: string) => {
     if (showFeedback) return;
     setSelectedAnswer(answer);
     if (answer === currentQuestions[currentQuestionIndex].correctAnswer) {
+      playCorrect();
       setScore(score + pointsPerDifficulty[selectedDifficulty!]);
       setShowFeedback(true);
     } else {
@@ -117,6 +131,7 @@ export default function QuizPage() {
   };
 
   const handleNextQuestion = () => {
+    playClick();
     setShowFeedback(false);
     setSelectedAnswer(null);
     setTimeLeft(15);
@@ -129,6 +144,7 @@ export default function QuizPage() {
   };
 
   const handleSubmitScore = async () => {
+    playClick();
     if (!playerName.trim() || isSubmitting) {
       alert("Nama tidak boleh kosong!");
       return;
@@ -192,6 +208,15 @@ export default function QuizPage() {
     }
   };
 
+  const handleShareScore = () => {
+    playClick();
+    const text = `Saya baru saja mendapatkan skor ${score} di Kuis ${selectedCategory} (Level ${selectedDifficulty})! Bisakah kamu mengalahkan skorku?`;
+    // PENTING: Ganti 'YOUR_BOT_USERNAME' dengan username bot Anda!
+    // Contoh: 'https://t.me/KuisPintarBot/kuiz'
+    const url = `https://t.me/share/url?url=https://t.me/kuizidbot/kuiz&text=${encodeURIComponent(text)}`;
+    WebApp.openTelegramLink(url);
+  };
+
   // --- TAMPILAN (UI) ---
 
   if (gameState === 'selection') {
@@ -208,7 +233,7 @@ export default function QuizPage() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => setGameState('leaderboard')} style={{...styles.secondaryButton, marginTop: '20px', width: '100%'}}>🏆 Lihat Papan Peringkat</button>
+              <button onClick={handleShowLeaderboard} style={{...styles.secondaryButton, marginTop: '20px', width: '100%'}}>🏆 Lihat Papan Peringkat</button>
             </>
           ) : (
             <>
@@ -220,7 +245,7 @@ export default function QuizPage() {
                   </button>
                 ))}
               </div>
-              <button onClick={() => setSelectedCategory('')} style={{...styles.secondaryButton, marginTop: '20px', width: '100%'}}>Kembali</button>
+              <button onClick={() => { playClick(); setSelectedCategory(''); }} style={{...styles.secondaryButton, marginTop: '20px', width: '100%'}}>Kembali</button>
             </>
           )}
         </div>
@@ -236,14 +261,14 @@ export default function QuizPage() {
           {isLoadingLeaderboard ? <p>Memuat data...</p> : (
             <ol style={styles.leaderboardList}>
               {leaderboardData.length > 0 ? leaderboardData.map((entry, index) => (
-                <li key={index}>
+                <li key={index} style={styles.leaderboardItem}>
                   <span>{index + 1}. {entry.name}</span>
-                  <span>{entry.score} Poin</span>
+                  <span style={styles.score}>{entry.score} Poin</span>
                 </li>
               )) : <p>Belum ada skor. Jadilah yang pertama!</p>}
             </ol>
           )}
-          <button onClick={() => setGameState('selection')} style={{...styles.primaryButton, marginTop: '20px'}}>Kembali</button>
+          <button onClick={() => { playClick(); setGameState('selection'); }} style={{...styles.primaryButton, marginTop: '20px'}}>Kembali</button>
         </div>
       </main>
     )
@@ -255,6 +280,7 @@ export default function QuizPage() {
         <div style={styles.quizCard}>
           <h1>{lives <= 0 ? 'Yah, Nyawa Habis!' : 'Kuis Selesai!'}</h1>
           <p style={styles.finalScore}>Skor Akhir Anda: {score}</p>
+          
           {!hasSubmitted && score > 0 && (
             <div style={styles.submitForm}>
               <input 
@@ -271,6 +297,13 @@ export default function QuizPage() {
             </div>
           )}
           {hasSubmitted && <p style={{color: 'green'}}>Skor berhasil dikirim!</p>}
+          
+          {score > 0 && 
+            <div style={{ margin: '10px 0' }}>
+               <button onClick={handleShareScore} style={{...styles.primaryButton, background: '#17A2B8', width: '100%'}}>📲 Bagikan Skor</button>
+            </div>
+          }
+
           {lives <= 0 && !hasSubmitted && (
             <div style={{ margin: '10px 0' }}>
               <button onClick={handleWatchAdForLife} disabled={isAdLoading} style={{...styles.primaryButton, background: '#28a745'}}>
@@ -278,6 +311,7 @@ export default function QuizPage() {
               </button>
             </div>
           )}
+          
           <button onClick={resetQuiz} style={{...styles.secondaryButton, width: '100%', background: '#6c757d', marginTop: '10px'}}>
             Kembali ke Menu Utama
           </button>
@@ -286,7 +320,6 @@ export default function QuizPage() {
     );
   }
 
-  // Bagian ini yang sebelumnya hilang dan menyebabkan 'unused variable'
   const currentQuestion = currentQuestions[currentQuestionIndex];
   return (
     <main style={styles.container}>
@@ -347,11 +380,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   secondaryButton: { padding: '12px', fontSize: '14px', border: '1px solid #6c757d', borderRadius: '8px', background: 'transparent', color: '#6c757d', cursor: 'pointer' },
   helpButtonsContainer: { display: 'flex', gap: '10px', marginTop: '20px' },
   helpButton: { flex: 1, padding: '12px', fontSize: '14px', border: 'none', borderRadius: '8px', background: '#6c757d', color: 'white', cursor: 'pointer' },
-  correctAnswer: { background: '#28a_745', color: 'white', borderColor: '#28a745' },
+  correctAnswer: { background: '#28a745', color: 'white', borderColor: '#28a745' },
   wrongAnswer: { background: '#dc3545', color: 'white', borderColor: '#dc3545' },
   finalScore: { fontSize: '24px', fontWeight: 'bold', margin: '20px 0' },
   selectionGrid: { display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' },
   submitForm: { display: 'flex', flexDirection: 'column', gap: '10px', margin: '20px 0' },
   input: { padding: '12px', fontSize: '16px', border: '1px solid #ccc', borderRadius: '8px' },
   leaderboardList: { listStyle: 'none', padding: 0, textAlign: 'left' },
+  leaderboardItem: { display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #eee' },
 };
